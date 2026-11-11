@@ -21,10 +21,94 @@ type FlexLampProps = {
  * right. The sprung-steel arc bends to follow, and the light cone + floor pool
  * track the head. Every colored part reads the palette vars.
  */
+// the guided intro: lift up-left, sweep right across, up-right, down low, settle
+const TOUR: [number, number, number][] = [
+  [112, 126, 950],
+  [322, 196, 1250],
+  [298, 130, 850],
+  [142, 332, 1050],
+  [160, 148, 900],
+];
+
 export function FlexLamp({ defaultHead = { x: 160, y: 148 } }: FlexLampProps) {
   const [head, setHead] = useState(defaultHead);
   const [dragging, setDragging] = useState(false);
+  const [touring, setTouring] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
+  const headLive = useRef(head);
+  const tourRef = useRef<{ raf: number; cancelled: boolean } | null>(null);
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    headLive.current = head;
+  }, [head]);
+
+  const cancelTour = useCallback(() => {
+    if (tourRef.current) {
+      tourRef.current.cancelled = true;
+      cancelAnimationFrame(tourRef.current.raf);
+      tourRef.current = null;
+    }
+    setTouring(false);
+  }, []);
+
+  const runTour = useCallback(() => {
+    if (tourRef.current) return;
+    const run = { raf: 0, cancelled: false };
+    tourRef.current = run;
+    setTouring(true);
+    const easeIO = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+    let i = 0;
+    let from = { ...headLive.current };
+    let t0 = performance.now() + 150;
+    const step = (now: number) => {
+      if (run.cancelled) return;
+      const [tx, ty, dur] = TOUR[i];
+      const p = clamp((now - t0) / dur, 0, 1);
+      const e = easeIO(p);
+      setHead({ x: from.x + (tx - from.x) * e, y: from.y + (ty - from.y) * e });
+      if (p >= 1) {
+        i++;
+        if (i >= TOUR.length) {
+          tourRef.current = null;
+          setTouring(false);
+          return;
+        }
+        from = { x: tx, y: ty };
+        t0 = now + 170;
+      }
+      run.raf = requestAnimationFrame(step);
+    };
+    run.raf = requestAnimationFrame(step);
+  }, []);
+
+  // play the guided demo once, when the lamp scrolls into view
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !startedRef.current) {
+          startedRef.current = true;
+          runTour();
+          io.disconnect();
+        }
+      },
+      { threshold: 0.55 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [runTour]);
+
+  // reels + replays can trigger it by hand
+  useEffect(() => {
+    const w = window as unknown as Record<string, unknown>;
+    w.__lampTour = () => {
+      cancelTour();
+      runTour();
+    };
+  }, [cancelTour, runTour]);
 
   const { x: hx, y: hy } = head;
   const drop = BASE.floor - hy;
@@ -88,12 +172,16 @@ export function FlexLamp({ defaultHead = { x: 160, y: 148 } }: FlexLampProps) {
           tabIndex={0}
           onPointerDown={(e) => {
             e.preventDefault();
+            cancelTour();
             setDragging(true);
             fromEvent(e);
           }}
           onKeyDown={(e) => {
             const step = 14;
-            if (e.key.startsWith("Arrow")) e.preventDefault();
+            if (e.key.startsWith("Arrow")) {
+              e.preventDefault();
+              cancelTour();
+            }
             if (e.key === "ArrowUp") setHead((h) => ({ ...h, y: clamp(h.y - step, HEAD.minY, HEAD.maxY) }));
             if (e.key === "ArrowDown") setHead((h) => ({ ...h, y: clamp(h.y + step, HEAD.minY, HEAD.maxY) }));
             if (e.key === "ArrowLeft") setHead((h) => ({ ...h, x: clamp(h.x - step, HEAD.minX, HEAD.maxX) }));
@@ -112,8 +200,8 @@ export function FlexLamp({ defaultHead = { x: 160, y: 148 } }: FlexLampProps) {
             stroke="var(--accent)"
             strokeWidth="1.5"
             strokeDasharray="4 6"
-            animate={{ opacity: dragging ? 0.95 : [0.55, 0.2, 0.55], scale: dragging ? 1.1 : 1 }}
-            transition={dragging ? { duration: 0.2 } : { duration: 2.2, repeat: Infinity, ease }}
+            animate={{ opacity: dragging || touring ? 0.95 : [0.55, 0.2, 0.55], scale: dragging || touring ? 1.1 : 1 }}
+            transition={dragging || touring ? { duration: 0.2 } : { duration: 2.2, repeat: Infinity, ease }}
             style={{ transformOrigin: `${hx}px ${hy}px` }}
           />
           {/* 4-way hint while idle */}
