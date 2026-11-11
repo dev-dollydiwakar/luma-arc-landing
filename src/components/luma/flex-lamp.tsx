@@ -10,6 +10,26 @@ const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 // where the head is allowed to go (svg units)
 const HEAD = { minX: 96, maxX: 332, minY: 118, maxY: 356 };
 const BASE = { x: 402, floor: 468 };
+// the arc is one fixed-length rod out of the base post: the head can never
+// leave its reach — pull too far and it slides along the taut-rod circle
+const PIVOT = { x: 402, y: 400 };
+const ROD = { max: 395, min: 150 };
+
+const clampHead = (x: number, y: number) => {
+  x = clamp(x, HEAD.minX, HEAD.maxX);
+  y = clamp(y, HEAD.minY, HEAD.maxY);
+  const dx = x - PIVOT.x;
+  const dy = y - PIVOT.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const r = clamp(d, ROD.min, ROD.max);
+  if (r !== d) {
+    x = clamp(PIVOT.x + (dx / d) * r, HEAD.minX, HEAD.maxX);
+    y = clamp(PIVOT.y + (dy / d) * r, HEAD.minY, HEAD.maxY);
+  }
+  return { x, y };
+};
+
+const toPolar = (p: { x: number; y: number }) => ({ r: Math.hypot(p.x - PIVOT.x, p.y - PIVOT.y), a: Math.atan2(p.y - PIVOT.y, p.x - PIVOT.x) });
 
 type FlexLampProps = {
   /** Starting head position in svg units. */
@@ -66,7 +86,13 @@ export function FlexLamp({ defaultHead = { x: 160, y: 148 } }: FlexLampProps) {
       const [tx, ty, dur] = TOUR[i];
       const p = clamp((now - t0) / dur, 0, 1);
       const e = easeIO(p);
-      setHead({ x: from.x + (tx - from.x) * e, y: from.y + (ty - from.y) * e });
+      // interpolate around the base, not through the air: the head swings
+      // and the rod pays out, like actually bending the arc
+      const A = toPolar(from);
+      const B = toPolar({ x: tx, y: ty });
+      const r = A.r + (B.r - A.r) * e;
+      const a = A.a + (B.a - A.a) * e;
+      setHead(clampHead(PIVOT.x + Math.cos(a) * r, PIVOT.y + Math.sin(a) * r));
       if (p >= 1) {
         i++;
         if (i >= TOUR.length) {
@@ -115,15 +141,22 @@ export function FlexLamp({ defaultHead = { x: 160, y: 148 } }: FlexLampProps) {
   const spread = drop * 0.34 + 16;
   const glow = lerp(0.75, 0.42, drop / 350); // lower head → tighter, brighter pool
 
-  // sprung-steel bend: control points between the base post and wherever the head is
-  const arc = `M${BASE.x} ${BASE.floor} C ${BASE.x} ${hy + (BASE.floor - hy) * 0.3} ${hx + (BASE.x - hx) * 0.32} ${hy - 14} ${hx + 34} ${hy + 4}`;
+  // sprung steel: near full reach the rod pulls taut (almost straight),
+  // close to the base it folds into a deep bend
+  const rodLen = Math.hypot(hx - PIVOT.x, hy - PIVOT.y);
+  const bend = 0.25 + 0.75 * clamp((ROD.max - rodLen) / (ROD.max - ROD.min), 0, 1);
+  const sx = (k: number) => BASE.x + (hx - BASE.x) * k;
+  const sy = (k: number) => BASE.floor + (hy - BASE.floor) * k;
+  const c1 = { x: sx(0.34) + (BASE.x - sx(0.34)) * bend, y: sy(0.34) + (hy + (BASE.floor - hy) * 0.3 - sy(0.34)) * bend };
+  const c2 = { x: sx(0.68) + (hx + (BASE.x - hx) * 0.32 - sx(0.68)) * bend, y: sy(0.68) + (hy - 14 - sy(0.68)) * bend };
+  const arc = `M${BASE.x} ${BASE.floor} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${hx + 34} ${hy + 4}`;
 
   const fromEvent = useCallback((e: PointerEvent | React.PointerEvent) => {
     const box = svgRef.current?.getBoundingClientRect();
     if (!box) return;
     const x = ((e.clientX - box.left) / box.width) * 520;
     const y = ((e.clientY - box.top) / box.height) * 560;
-    setHead({ x: clamp(x, HEAD.minX, HEAD.maxX), y: clamp(y, HEAD.minY, HEAD.maxY) });
+    setHead(clampHead(x, y));
   }, []);
 
   useEffect(() => {
@@ -182,10 +215,10 @@ export function FlexLamp({ defaultHead = { x: 160, y: 148 } }: FlexLampProps) {
               e.preventDefault();
               cancelTour();
             }
-            if (e.key === "ArrowUp") setHead((h) => ({ ...h, y: clamp(h.y - step, HEAD.minY, HEAD.maxY) }));
-            if (e.key === "ArrowDown") setHead((h) => ({ ...h, y: clamp(h.y + step, HEAD.minY, HEAD.maxY) }));
-            if (e.key === "ArrowLeft") setHead((h) => ({ ...h, x: clamp(h.x - step, HEAD.minX, HEAD.maxX) }));
-            if (e.key === "ArrowRight") setHead((h) => ({ ...h, x: clamp(h.x + step, HEAD.minX, HEAD.maxX) }));
+            if (e.key === "ArrowUp") setHead((h) => clampHead(h.x, h.y - step));
+            if (e.key === "ArrowDown") setHead((h) => clampHead(h.x, h.y + step));
+            if (e.key === "ArrowLeft") setHead((h) => clampHead(h.x - step, h.y));
+            if (e.key === "ArrowRight") setHead((h) => clampHead(h.x + step, h.y));
           }}
           style={{ cursor: dragging ? "grabbing" : "grab" }}
         >
