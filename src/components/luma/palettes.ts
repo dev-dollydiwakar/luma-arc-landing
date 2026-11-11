@@ -28,6 +28,9 @@ export interface Palette {
   };
 }
 
+// the bright one ships as the default
+export const DEFAULT_PALETTE = 1;
+
 export const PALETTES: Palette[] = [
   {
     id: "aurora",

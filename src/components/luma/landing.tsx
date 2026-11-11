@@ -5,7 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { Confetti } from "./confetti";
 import { FlexLamp } from "./flex-lamp";
-import { PALETTES, paletteStyle, type Palette } from "./palettes";
+import { DEFAULT_PALETTE, PALETTES, paletteStyle, type Palette } from "./palettes";
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 
@@ -93,7 +93,7 @@ type BuyState = "idle" | "loading" | "done";
 
 /** LUMA Arc landing page. One 60-30-10 palette runs the page; the lamp's light is the 10%. */
 export function LumaLanding() {
-  const [pi, setPi] = useState(0);
+  const [pi, setPi] = useState(DEFAULT_PALETTE);
   const [buy, setBuy] = useState<BuyState>("idle");
   const [kelvin, setKelvin] = useState(3200);
   const p = PALETTES[pi];
