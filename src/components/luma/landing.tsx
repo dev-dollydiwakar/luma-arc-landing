@@ -3,6 +3,8 @@
 import { AnimatePresence, MotionConfig, motion, type Variants } from "motion/react";
 import { useEffect, useState, type ReactNode } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Confetti } from "./confetti";
 import { FlexLamp } from "./flex-lamp";
 import { DEFAULT_PALETTE, PALETTES, paletteStyle, type Palette } from "./palettes";
@@ -93,6 +95,7 @@ type BuyState = "idle" | "loading" | "done";
 
 /** LUMA Arc landing page. One 60-30-10 palette runs the page; the lamp's light is the 10%. */
 export function LumaLanding() {
+  const router = useRouter();
   const [pi, setPi] = useState(DEFAULT_PALETTE);
   const [buy, setBuy] = useState<BuyState>("idle");
   const [kelvin, setKelvin] = useState(3200);
@@ -107,7 +110,7 @@ export function LumaLanding() {
   function order() {
     if (buy !== "idle") return;
     setBuy("loading");
-    setTimeout(() => setBuy("done"), 1300);
+    setTimeout(() => router.push("/checkout"), 950);
   }
 
   return (
@@ -147,9 +150,9 @@ export function LumaLanding() {
               </button>
             ))}
           </div>
-          <button type="button" className="hidden h-10 cursor-pointer items-center rounded-xl px-4 text-[13.5px] font-bold transition-colors duration-700 sm:flex" style={{ background: "var(--accent)", color: "var(--on-accent)" }}>
+          <Link href="/checkout" id="nav-checkout" className="hidden h-10 cursor-pointer items-center rounded-xl px-4 text-[13.5px] font-bold transition-colors duration-700 sm:flex" style={{ background: "var(--accent)", color: "var(--on-accent)" }}>
             Pre-order
-          </button>
+          </Link>
         </motion.nav>
 
         {/* hero */}
@@ -181,9 +184,9 @@ export function LumaLanding() {
               A single steel arc, a 2700–6500K light engine, and a palette system that re-themes the room — and this page — in one tap.
             </motion.p>
             <motion.div variants={rise} initial="hidden" animate="show" transition={{ delay: 0.55 }} className="mt-7 flex items-center gap-3">
-              <button type="button" className="shimmer relative h-13 cursor-pointer overflow-hidden rounded-2xl px-6 text-[15px] font-bold shadow-[0_18px_36px_-16px_var(--shadow)] transition-colors duration-700" style={{ background: "var(--accent)", color: "var(--on-accent)" }}>
+              <Link href="/checkout" id="hero-checkout" className="shimmer relative flex h-13 cursor-pointer items-center overflow-hidden rounded-2xl px-6 text-[15px] font-bold shadow-[0_18px_36px_-16px_var(--shadow)] transition-colors duration-700" style={{ background: "var(--accent)", color: "var(--on-accent)" }}>
                 Pre-order · $249
-              </button>
+              </Link>
               <span className="text-[13px] transition-colors duration-700" style={{ color: "var(--muted)" }}>
                 Ships March · free returns
               </span>

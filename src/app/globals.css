@@ -96,3 +96,9 @@ body {
   60% { opacity: 1; filter: blur(0); }
   to { opacity: 1; translate: 0 0; scale: 1; filter: blur(0); }
 }
+
+
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
